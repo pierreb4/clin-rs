@@ -82,6 +82,7 @@ pub fn list_action_meta(a: ListAction) -> HelpMeta {
         ListAction::PreviewPageUp => meta("Display", "Page preview up"),
         ListAction::ToggleCalendar => meta("Display", "Toggle calendar"),
         ListAction::OpenCommandPalette => meta("Display", "Open command palette"),
+        ListAction::OpenSettings => meta("Display", "Open settings (core.settings_command)"),
         ListAction::OpenGraph => meta("Display", "Open graph view"),
         ListAction::OpenCanvas => meta("Display", "Open canvas view"),
         ListAction::CollapseAll => meta("Display", "Collapse all folders"),

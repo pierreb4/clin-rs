@@ -282,6 +282,10 @@ pub fn handle_list_keys(app: &mut App, key: KeyEvent) -> bool {
                 }
                 return false;
             }
+            ListAction::OpenSettings => {
+                app.open_settings();
+                return false;
+            }
             ListAction::Duplicate => {
                 app.begin_duplicate();
                 return false;

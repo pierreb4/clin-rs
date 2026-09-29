@@ -40,6 +40,7 @@ pub enum ListAction {
     CollapseFolder,
     ExpandFolder,
     OpenCommandPalette,
+    OpenSettings,
 
     Rename,
     Duplicate,

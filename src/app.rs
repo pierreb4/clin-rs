@@ -86,6 +86,52 @@ fn resume_from_external(mouse_enabled: bool) {
     }
 }
 
+/// Like `suspend_for_external`, but stays on the alternate screen, so a
+/// command that draws only part of the screen (e.g. a settings panel at the
+/// bottom) appears over clin rather than over the shell.
+fn suspend_for_overlay() {
+    if let Err(e) = crossterm::terminal::disable_raw_mode() {
+        eprintln!("Failed to disable raw mode: {e}");
+    }
+    #[cfg(not(windows))]
+    if let Err(e) = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::PopKeyboardEnhancementFlags
+    ) {
+        eprintln!("Failed to pop keyboard enhancement flags: {e}");
+    }
+    if let Err(e) = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::DisableMouseCapture,
+        crossterm::event::DisableBracketedPaste
+    ) {
+        eprintln!("Failed to reset terminal: {e}");
+    }
+}
+
+fn resume_from_overlay(mouse_enabled: bool) {
+    if let Err(e) = crossterm::terminal::enable_raw_mode() {
+        eprintln!("Failed to enable raw mode: {e}");
+    }
+    if let Err(e) = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::EnableMouseCapture,
+        crossterm::event::EnableBracketedPaste,
+        crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
+    ) {
+        eprintln!("Failed to restore terminal: {e}");
+    }
+    #[cfg(not(windows))]
+    if let Err(e) = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::PushKeyboardEnhancementFlags(crate::keyboard_enhancement_flags(
+            mouse_enabled,
+        ))
+    ) {
+        eprintln!("Failed to push keyboard enhancement flags: {e}");
+    }
+}
+
 pub const VIRTUAL_PINNED_PATH: &str = "__clin_virtual__/pinned";
 pub const VIRTUAL_PINNED_LABEL: &str = "Pinned";
 pub const VIRTUAL_SMART_PATH: &str = "__clin_virtual__/smart";
@@ -1492,6 +1538,53 @@ impl App {
         resume_from_external(self.mouse_enabled);
         self.needs_full_redraw = true;
         (result, program.to_string())
+    }
+
+    /// Run `core.settings_command` over clin's screen, then apply what it
+    /// changed in the config.
+    pub fn open_settings(&mut self) {
+        let command = self
+            .config
+            .core
+            .settings_command
+            .clone()
+            .unwrap_or_default();
+        let parts: Vec<&str> = command.split_whitespace().collect();
+        let Some((program, args)) = parts.split_first() else {
+            self.set_temporary_status_static("No settings command: set core.settings_command");
+            return;
+        };
+        suspend_for_overlay();
+        let result = std::process::Command::new(program).args(args).status();
+        resume_from_overlay(self.mouse_enabled);
+        self.needs_full_redraw = true;
+        match result {
+            Ok(_) => self.apply_reloaded_config(),
+            Err(e) => self
+                .set_temporary_status(&format!("Failed to run settings command '{program}': {e}")),
+        }
+    }
+
+    /// Re-read the config and apply the settings that are otherwise only
+    /// read at startup.
+    pub fn apply_reloaded_config(&mut self) {
+        self.reload_config();
+        if let Ok(path) = crate::config::ClinConfig::config_path() {
+            self.config_mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+        }
+        let list = self.config.list.clone();
+        if self.list.notes_layout != list.default_view {
+            self.list.notes_layout = list.default_view;
+            self.list.visual_index = 0;
+            self.list.grid_folder = String::new();
+        }
+        self.list.preview_enabled = list.preview_enabled;
+        self.list.list_density = list.density;
+        self.list.calendar_enabled = list.calendar_enabled;
+        self.editor.external_editor_enabled = self.config.editor.external_enabled;
+        self.editor.external_editor = self.config.editor.external_command.clone();
+        self.apply_keybind_preset(self.config.core.keybind_preset);
+        self.refresh_visual_list();
     }
     /// Resolve the configured external editor and delegate to run_external_command.
     fn run_in_external_editor(

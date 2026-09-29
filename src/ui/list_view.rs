@@ -1757,7 +1757,7 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
     }
     let kb = &app.keybinds;
     let is_grid = app.list.notes_layout == crate::config::NotesLayout::Grid;
-    let hints_items = if is_grid {
+    let mut hints_items = if is_grid {
         vec![
             (
                 format!(
@@ -1798,6 +1798,11 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
             ("F2".to_string(), "keybinds"),
         ]
     };
+    if app.config.core.settings_command.is_some() {
+        // Before quit, help and keybinds, which stay last.
+        let at = hints_items.len() - 3;
+        hints_items.insert(at, (kb.display_list(ListAction::OpenSettings), "settings"));
+    }
     let default_hints = format_keybind_hints(&app.app_theme, &hints_items);
 
     let hint = if in_select_mode {

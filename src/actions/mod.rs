@@ -212,6 +212,16 @@ simple_action!(
     open_setup_view
 );
 simple_action!(
+    OpenSettingsAction,
+    "settings.open",
+    "Open Settings",
+    "Run the settings command (core.settings_command) over clin's screen",
+    ActionCategory::Settings,
+    "\u{f013}",
+    "\u{2699}",
+    open_settings
+);
+simple_action!(
     OpenVaultSwitcherAction,
     "vault.switch",
     "Switch Vault",
@@ -258,6 +268,7 @@ pub static ACTIONS: std::sync::LazyLock<Vec<Box<dyn Action>>> = std::sync::LazyL
         Box::new(ocr::InsertImageFromFileAction),
         Box::new(SwitchThemeAction),
         Box::new(OpenSetupWizardAction),
+        Box::new(OpenSettingsAction),
         Box::new(SwitchKeybindPresetAction),
         Box::new(ToggleExternalEditorAction),
         Box::new(ToggleLayoutAction),

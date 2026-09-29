@@ -555,6 +555,11 @@ pub struct CoreConfig {
     pub preview_expand_mode: crate::config::PreviewExpandMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_command: Option<String>,
+    /// Command run by the Open Settings action (split on whitespace). It
+    /// runs over clin's screen, which stays visible behind it, and the
+    /// config is re-read when it exits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings_command: Option<String>,
     pub syntax_highlighting: bool,
     pub code_theme: String,
     pub code_line_numbers: bool,
@@ -579,6 +584,7 @@ impl Default for CoreConfig {
             enable_key_sequences: false,
             preview_expand_mode: crate::config::PreviewExpandMode::default(),
             preview_command: None,
+            settings_command: None,
             syntax_highlighting: true,
             code_theme: "base16-ocean.dark".to_string(),
             code_line_numbers: true,

@@ -29,6 +29,7 @@ Run `clin config show` to print the active configuration file path.
 | `preview_expand_mode` | `enum` | `"inline"` | Ctrl+e behavior: `"inline"` (maximize the preview pane) or `"external"` (run `preview_command` on the note) |
 | `preview_command` | `String` | — | Command for external preview (Ctrl+e when `preview_expand_mode = "external"`). Shell-split with the note's temp file appended; falls back to `$PAGER`, then `less` |
 | `auto_refresh` | `bool` | `true` | Reload notes list on external file changes (notify watcher) |
+| `settings_command` | `String` | — | Command run by Open Settings (`,` in the notes list, or the command palette), whitespace-split. It runs over clin's screen, which stays visible behind it, and the config is re-read and applied when it exits |
 
 ### `[list]`
 

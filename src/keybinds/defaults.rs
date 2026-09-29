@@ -44,6 +44,7 @@ const DEFAULT_LIST: &[(ListAction, &[&str])] = &[
     (ListAction::ManageTags, &["."]),
     (ListAction::RemoveTagsFromSelected, &["Ctrl+."]),
     (ListAction::OpenCommandPalette, &[":", "Ctrl+p"]),
+    (ListAction::OpenSettings, &[","]),
     (ListAction::Rename, &["r"]),
     (ListAction::Duplicate, &["y"]),
     (ListAction::TogglePin, &["p"]),
