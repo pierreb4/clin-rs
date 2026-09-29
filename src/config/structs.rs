@@ -403,6 +403,11 @@ pub struct ListConfig {
     pub default_expand_depth: Option<usize>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_smart_folders: Vec<CustomSmartFolder>,
+    /// Give the notes list, the calendar strip and the preview their own
+    /// hint line at the bottom of each pane, instead of one status bar
+    /// across the whole window.
+    #[serde(default)]
+    pub pane_hints: bool,
 }
 impl Default for ListConfig {
     fn default() -> Self {
@@ -433,6 +438,7 @@ impl Default for ListConfig {
             sections: vec![NotesSection::Calendar, NotesSection::Goals],
             default_expand_depth: None,
             custom_smart_folders: Vec::new(),
+            pane_hints: false,
         }
     }
 }

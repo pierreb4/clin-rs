@@ -563,12 +563,13 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
         app.mouse_pos = None;
     }
     let area = frame.area();
+    let pane_hints = app.config.list.pane_hints;
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
             Constraint::Min(5),
-            Constraint::Length(1),
+            Constraint::Length(if pane_hints { 0 } else { 1 }),
         ])
         .split(area);
     let title = if app.layout_edit {
@@ -793,6 +794,7 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
         app.list.preview_width_ratio,
         app.list.calendar_height,
         app.config.list.calendar_position,
+        app.config.list.pane_hints,
     );
     if let Some(p) = preview_area {
         app.list.last_preview_pane_width = p.width;
@@ -1835,8 +1837,17 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
     } else {
         crate::ui::ext_badge_spans(app.editor.external_editor_enabled, &app.app_theme, None)
     };
+    // With pane hints, the list's hints (and the rest of the status bar
+    // template) sit under the list; otherwise across the whole window.
+    let list_hint_area = if !pane_hints {
+        Some(chunks[2])
+    } else if app.preview_fullscreen {
+        None
+    } else {
+        Some(hint_row(list_area))
+    };
     let mut ctx = crate::statusline::StatuslineContext::for_view(app, ViewMode::List);
-    ctx.area = Some(chunks[2]);
+    ctx.area = list_hint_area;
     ctx.hints = Some(hint.spans);
     ctx.badge = Some(badge_spans);
     if let Some(p) = &app.seq_matcher.pending_display() {
@@ -1854,7 +1865,12 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
         ViewMode::List,
         &app.app_theme,
     );
-    draw_status_bar(frame, chunks[2], &app.app_theme, left_line, right_line);
+    if let Some(r) = list_hint_area {
+        draw_status_bar(frame, r, &app.app_theme, left_line, right_line);
+    }
+    if pane_hints {
+        draw_pane_hints(frame, app, calendar_area, preview_area);
+    }
     if app.list.preview_enabled && !app.preview_fullscreen {
         let ratio_num = (app.list.preview_width_ratio.clamp(0.2, 0.8) * 100.0).round() as u32;
         let constraints = match app.preview_position {
@@ -1892,10 +1908,15 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
             draw_dim_vline(frame, full_cols[1], app.app_theme.muted);
         }
     }
-    if app.layout_edit && app.list.calendar_enabled {
+    if app.layout_edit
+        && app.list.calendar_enabled
+        && let Some(cal) = calendar_area
+    {
+        // Measured from the calendar, so the list's hint line (pane hints)
+        // isn't drawn over.
         let hdiv_y = match app.config.list.calendar_position {
-            crate::config::CalendarPosition::Bottom => list_area.y + list_area.height,
-            crate::config::CalendarPosition::Top => list_area.y.saturating_sub(1),
+            crate::config::CalendarPosition::Bottom => cal.y,
+            crate::config::CalendarPosition::Top => cal.bottom().saturating_sub(1),
         };
         let accent = app.app_theme.heading;
         let buf = frame.buffer_mut();
@@ -1915,6 +1936,63 @@ pub fn draw_list_view(frame: &mut Frame, app: &mut App) {
     app.mouse_pos = saved_mouse_pos;
 }
 
+/// With pane hints on, the hint lines under the calendar strip and the
+/// preview, each showing the keys for that pane.
+fn draw_pane_hints(
+    frame: &mut Frame,
+    app: &App,
+    calendar_area: Option<Rect>,
+    preview_area: Option<Rect>,
+) {
+    let kb = &app.keybinds;
+    let theme = &app.app_theme;
+    if let Some(cal) = calendar_area.filter(|_| !app.preview_fullscreen) {
+        let mut items = vec![
+            (kb.display_list(ListAction::ToggleCalendar), "hide"),
+            (
+                kb.display_list(ListAction::OpenCommandPalette),
+                "palette › layout edit",
+            ),
+        ];
+        if app.list.sections.iter().any(|s| {
+            matches!(
+                s,
+                crate::config::NotesSection::Graf | crate::config::NotesSection::Draw
+            )
+        }) {
+            items.push(("click".to_string(), "graph/draw"));
+        }
+        let line = format_keybind_hints(theme, &items);
+        draw_status_bar(frame, hint_row(cal), theme, line, None);
+    }
+    if let Some(preview) = preview_area {
+        let full_screen = if app.preview_fullscreen {
+            "back"
+        } else {
+            "full screen"
+        };
+        let items = vec![
+            (
+                kb.display_list(ListAction::TogglePreviewFullscreen),
+                full_screen,
+            ),
+            (
+                format!(
+                    "{}/{}",
+                    kb.display_list(ListAction::PreviewPageUp),
+                    kb.display_list(ListAction::PreviewPageDown)
+                ),
+                "scroll",
+            ),
+            (kb.display_list(ListAction::ToggleWrap), "wrap"),
+            (kb.display_list(ListAction::TogglePreview), "hide"),
+        ];
+        let line = format_keybind_hints(theme, &items);
+        draw_status_bar(frame, hint_row(preview), theme, line, None);
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub(crate) fn list_view_layout(
     area: Rect,
     preview_enabled: bool,
@@ -1924,18 +2002,31 @@ pub(crate) fn list_view_layout(
     preview_width_ratio: f32,
     calendar_height: u16,
     calendar_position: crate::config::CalendarPosition,
+    pane_hints: bool,
 ) -> (Rect, Option<Rect>, Option<Rect>) {
+    // With pane hints there is no window-wide status bar; instead each pane
+    // gives up its bottom row to its own hint line (see `hint_row`).
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
             Constraint::Min(5),
-            Constraint::Length(1),
+            Constraint::Length(if pane_hints { 0 } else { 1 }),
         ])
         .split(area);
+    let shrink = |r: Rect| {
+        if pane_hints {
+            Rect {
+                height: r.height.saturating_sub(1),
+                ..r
+            }
+        } else {
+            r
+        }
+    };
 
     if preview_fullscreen {
-        return (chunks[1], Some(chunks[1]), None);
+        return (chunks[1], Some(shrink(chunks[1])), None);
     }
 
     let (list_column, preview_area) = if preview_enabled {
@@ -1973,7 +2064,8 @@ pub(crate) fn list_view_layout(
     };
 
     let (list_area, calendar_area) = if calendar_enabled {
-        let cal_h = calendar_height.max(9);
+        // The calendar needs all its rows; its hint line comes on top.
+        let cal_h = calendar_height.max(9) + u16::from(pane_hints);
         let sp = match calendar_position {
             crate::config::CalendarPosition::Bottom => Layout::default()
                 .direction(Direction::Vertical)
@@ -1992,7 +2084,20 @@ pub(crate) fn list_view_layout(
         (list_column, None)
     };
 
-    (list_area, preview_area, calendar_area)
+    (
+        shrink(list_area),
+        preview_area.map(shrink),
+        calendar_area.map(shrink),
+    )
+}
+
+/// The row just below a pane, where its hint line goes with pane hints on.
+pub(crate) fn hint_row(pane: Rect) -> Rect {
+    Rect {
+        y: pane.bottom(),
+        height: 1,
+        ..pane
+    }
 }
 
 fn get_item_name(app: &App, idx: usize) -> Option<String> {
@@ -2455,6 +2560,7 @@ mod tests {
                 0.43,  // preview_width_ratio (default)
                 9,     // calendar_height (default)
                 CalendarPosition::Bottom,
+                false,
             );
 
             let cal = calendar_area.expect("calendar enabled");
@@ -2484,6 +2590,7 @@ mod tests {
             0.43,
             9,
             CalendarPosition::Bottom,
+            false,
         );
 
         assert!(preview_area.is_none());
@@ -2491,6 +2598,65 @@ mod tests {
         assert_eq!(cal.width, list_area.width);
         assert_eq!(cal.y, list_area.y + list_area.height);
         assert_eq!(cal.height, 9);
+    }
+
+    /// Pane hints drop the window-wide status bar and give each pane its own
+    /// hint row, directly below it, without overlapping another pane.
+    #[test]
+    fn pane_hints_give_each_pane_a_row_below_it() {
+        let area = Rect::new(0, 0, 80, 24);
+        for &position in &[CalendarPosition::Bottom, CalendarPosition::Top] {
+            let layout = |pane_hints| {
+                list_view_layout(
+                    area,
+                    true,
+                    PreviewPosition::Right,
+                    true,
+                    false,
+                    0.43,
+                    9,
+                    position,
+                    pane_hints,
+                )
+            };
+            let (list, preview, cal) = layout(true);
+            let (preview, cal) = (preview.expect("preview"), cal.expect("calendar"));
+            let (plain_list, plain_preview, plain_cal) = layout(false);
+
+            // The status bar's row now belongs to the panes: the preview's
+            // hint line is the window's last row.
+            assert_eq!(hint_row(preview).y, area.bottom() - 1);
+            assert_eq!(preview.height, plain_preview.expect("preview").height);
+            // List and calendar each give up exactly one row to their hint.
+            assert_eq!(list.height, plain_list.height - 1);
+            assert_eq!(cal.height, plain_cal.expect("calendar").height);
+            // No hint row lands on another pane.
+            for (pane, other) in [(list, cal), (cal, list)] {
+                let hint = hint_row(pane);
+                assert!(hint.bottom() <= area.bottom());
+                assert!(hint.intersection(other).is_empty(), "{position:?}");
+            }
+        }
+    }
+
+    /// Full-screen preview keeps its hint row too.
+    #[test]
+    fn pane_hints_in_fullscreen_preview() {
+        let area = Rect::new(0, 0, 80, 24);
+        let (_, preview, _) = list_view_layout(
+            area,
+            true,
+            PreviewPosition::Right,
+            true,
+            true,
+            0.43,
+            9,
+            CalendarPosition::Bottom,
+            true,
+        );
+        let preview = preview.expect("preview");
+        assert_eq!(preview.y, 1);
+        assert_eq!(hint_row(preview).y, area.bottom() - 1);
     }
 
     /// With the calendar disabled there is no calendar area and list is full.
@@ -2506,6 +2672,7 @@ mod tests {
             0.43,
             9,
             CalendarPosition::Bottom,
+            false,
         );
         assert!(calendar_area.is_none());
         assert!(preview_area.is_some());
@@ -2652,6 +2819,7 @@ mod tests {
             0.43,
             9,
             CalendarPosition::Bottom,
+            false,
         );
         let (_, preview_70, _) = list_view_layout(
             area,
@@ -2662,6 +2830,7 @@ mod tests {
             0.70,
             9,
             CalendarPosition::Bottom,
+            false,
         );
         let p43 = preview_43.expect("preview enabled");
         let p70 = preview_70.expect("preview enabled");
@@ -2683,6 +2852,7 @@ mod tests {
             0.43,
             9,
             CalendarPosition::Bottom,
+            false,
         );
         let (_, _, cal_14) = list_view_layout(
             area,
@@ -2693,6 +2863,7 @@ mod tests {
             0.43,
             14,
             CalendarPosition::Bottom,
+            false,
         );
         let c9 = cal_9.expect("calendar enabled");
         let c14 = cal_14.expect("calendar enabled");
@@ -2715,6 +2886,7 @@ mod tests {
             0.43,
             3,
             CalendarPosition::Bottom,
+            false,
         );
         let c3 = cal_3.expect("calendar enabled");
         assert_eq!(

@@ -1086,6 +1086,7 @@ pub fn handle_list_mouse(app: &mut App, mouse_event: MouseEvent, terminal_area: 
                 app.list.preview_width_ratio,
                 app.list.calendar_height,
                 app.config.list.calendar_position,
+                app.config.list.pane_hints,
             );
             if let Some(cal_rect) = calendar_area {
                 let active = app.active_strip_sections_for(cal_rect.width);
@@ -1191,6 +1192,7 @@ fn handle_layout_edit_mouse(app: &mut App, mouse: MouseEvent, terminal_area: Rec
         app.list.preview_width_ratio,
         app.list.calendar_height,
         app.config.list.calendar_position,
+        app.config.list.pane_hints,
     );
     // Compute section rects for cycling
     let active = app.active_strip_sections_for(calendar_area.map(|c| c.width).unwrap_or(0));

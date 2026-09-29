@@ -60,6 +60,7 @@ Run `clin config show` to print the active configuration file path.
 | `pinned_folders` | `array` | `[]` | List of always-pinned folder paths |
 | `default_expand_depth` | `usize` | — | Default tree expand depth (`None` = remember per-folder state) |
 | `custom_smart_folders` | `array` | `[]` | User-defined smart folder rules. Each entry: `{name, tags=[], title_contains=..., folder_prefix=..., updated_within_days=...}` |
+| `pane_hints` | `bool` | `false` | Give the notes list, the bottom strip and the preview each a hint line at the bottom of the pane, with the keys for that pane, instead of one status bar across the window. The list's line uses the `[statusline]` footer templates |
 
 ### `[editor]`
 
